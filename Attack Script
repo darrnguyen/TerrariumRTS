@@ -1,0 +1,73 @@
+--REQUIRES FIRING POINT ON THE GUN AND A STRING VALUE NAMED "TARGET"--
+
+local PathfindingService = game:GetService("PathfindingService")
+
+local raycastParams = RaycastParams.new()
+-- raycastParams.FilterDescendantsInstances = {script.Parent}
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+raycastParams.IgnoreWater = true
+
+local NPC = script.Parent.Head
+local Humanoid = script.Parent.Tower
+local Root = script.Parent:FindFirstChild("HumanoidRootPart")
+
+function FindTarget(Pos)
+	local list = game.Workspace:GetChildren()
+	local Target = nil
+	local Distance = 500
+	local temp = nil
+	local temp2 = nil
+	local human = nil
+	for x = 1, #list do
+		temp2 = list[x]
+		if (temp2.ClassName == "Model") and (temp2 ~= script.Parent) then
+			temp = temp2:FindFirstChild("HumanoidRootPart")
+			human = temp2:FindFirstChild("Enemy")
+			if (temp ~= nil) and (human ~= nil) and (human.Health > 0) then
+				if (temp.Position - Pos).Magnitude < Distance then
+					Target = temp
+					Distance = (temp.Position - Pos).magnitude
+					script.Parent.Target.Value = temp.Name
+				end
+			end
+		end
+	end
+	return Target
+end
+
+while true do
+
+	task.wait(0.25)
+
+	target = FindTarget(script.Parent.M16.FiringPoint.Position)
+
+	if target ~= nil and script.Parent.Tower.Health > 0 and (target.Position - script.Parent.Torso.Position).magnitude <= 100 then
+		
+		rayOrigin = script.Parent.M16.FiringPoint.Position
+		rayDestination = target.Position
+		rayDirection = rayDestination - rayOrigin
+
+		raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+		
+		print(raycastResult.Instance)
+		print(script.Parent.Target.Value)
+		
+		if table.find(raycastResult.Instance.Parent:GetChildren(), target) ~= nil then
+			print("true")
+			local laser = Instance.new("Part", game.Workspace)
+			laser.Name = "Laser"
+			laser.Material = Enum.Material.Neon
+			laser.Size = Vector3.new(0.1,0.1,raycastResult.Distance)
+			local distance = (rayOrigin - raycastResult.Position).Magnitude
+			laser.CFrame = CFrame.lookAt(rayOrigin, raycastResult.Position)*CFrame.new(0, 0, -distance/2)
+			laser.Anchored = true
+			wait(0.1)
+			laser:Destroy()			
+		else
+			print("false")
+		end
+
+	elseif script.Parent.Tower.Health <= 0 or target == nil then
+		script.Parent.Target.Value = nil
+	end	
+end
