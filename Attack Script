@@ -1,7 +1,8 @@
 --REQUIRES FIRING POINT ON THE GUN AND A STRING VALUE NAMED "TARGET"--
 
-local PathfindingService = game:GetService("PathfindingService")
+local firerate = 0.15
 
+local PathfindingService = game:GetService("PathfindingService")
 local raycastParams = RaycastParams.new()
 -- raycastParams.FilterDescendantsInstances = {script.Parent}
 raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -37,7 +38,7 @@ end
 
 while true do
 
-	task.wait(0.25)
+	task.wait(firerate)
 
 	target = FindTarget(script.Parent.M16.FiringPoint.Position)
 
@@ -49,11 +50,10 @@ while true do
 
 		raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 		
-		print(raycastResult.Instance)
-		print(script.Parent.Target.Value)
+--		print(raycastResult.Instance)
+--		print(script.Parent.Target.Value)
 		
 		if table.find(raycastResult.Instance.Parent:GetChildren(), target) ~= nil then
-			print("true")
 			local laser = Instance.new("Part", game.Workspace)
 			laser.Name = "Laser"
 			laser.Material = Enum.Material.Neon
@@ -61,13 +61,14 @@ while true do
 			local distance = (rayOrigin - raycastResult.Position).Magnitude
 			laser.CFrame = CFrame.lookAt(rayOrigin, raycastResult.Position)*CFrame.new(0, 0, -distance/2)
 			laser.Anchored = true
-			wait(0.1)
-			laser:Destroy()			
-		else
-			print("false")
+			laser.CanCollide = false
+			task.wait(firerate * 0.75)
+			laser:Destroy()
+			target.Parent:FindFirstChild("Enemy"):TakeDamage(15)
+			script.Parent.M16.Handle.Sound:Play()
 		end
 
 	elseif script.Parent.Tower.Health <= 0 or target == nil then
-		script.Parent.Target.Value = nil
+		script.Parent.Target.Value = ""
 	end	
 end
