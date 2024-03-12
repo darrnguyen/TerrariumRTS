@@ -1,0 +1,188 @@
+-- THIS GOES INTO CLIENT GUI -- 
+
+local tweening = game:GetService("TweenService")
+local user = game:GetService("Players").LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local cutSceneFinished = false
+local spawnMenu = game.ReplicatedStorage.SpawnMenu
+local spawnUnit = game.ReplicatedStorage.SpawnUnit
+local unitFolder = game.Workspace:FindFirstChild("UnitDisplay")
+local currentDisplay = game.Workspace:FindFirstChild("CurrentDisplay")
+local mapContent = game.Workspace.MapContent
+local menu = script.Parent.Menu
+local info = script.Parent.Info
+local startPoint : Vector3
+local endPoint: Vector3
+
+local confirmUnit = menu.Spawn
+local barracksLocation = nil
+local selectedUnit = nil
+
+function triggerProximity()
+	for _, parts in pairs(mapContent:GetDescendants()) do
+		if parts:IsA("ProximityPrompt") then
+			if parts.Enabled == true then
+				parts.Enabled = false
+			else
+				parts.Enabled = true
+			end
+		end
+	end
+end
+
+function ScaleCharacter(Character: Model,Scale : number)
+	local Origin = Character:GetPivot()
+	local Size = Character:GetExtentsSize()
+
+	local GroundLevel = Origin - (Origin.UpVector * (Size.Y/2))
+
+	for _,Object : Instance in Character:GetDescendants() do
+		if Object:IsA("BasePart") then
+			Object.Size *= Scale
+		end
+
+		if Object:IsA("Motor6D") or Object:IsA("Weld") then
+			local x, y, z, Xx, Yx, Zx, Xy, Yy, Zy, Xz, Yz, Zz = Object.C0:GetComponents()
+			Object.C0 = CFrame.new(x*Scale, y*Scale, z*Scale, Xx, Yx, Zx, Xy, Yy, Zy, Xz, Yz, Zz)
+			x, y, z, Xx, Yx, Zx, Xy, Yy, Zy, Xz, Yz, Zz = Object.C1:GetComponents()
+			Object.C1 = CFrame.new(x*Scale, y*Scale, z*Scale, Xx, Yx, Zx, Xy, Yy, Zy, Xz, Yz, Zz)
+		end
+
+		if Object:IsA("SpecialMesh") and Object:FindFirstAncestorWhichIsA("Accessory") then
+			Object.Scale *= Scale
+			Object.Offset *= Scale
+		end
+
+		if Object:IsA("Attachment") and not Object:FindFirstAncestorWhichIsA("Accessory") then
+			Object.Position *= Scale
+		end
+
+		if Object:IsA("Humanoid") then
+			Object.HipHeight = Object.HipHeight * Scale
+		end
+	end
+
+	Character:PivotTo(GroundLevel * CFrame.new(0,(Size*Scale).Y/2,0))
+end
+
+function displayUnit(requestedUnit)
+	currentDisplay:ClearAllChildren()
+	local replacement = requestedUnit:Clone()
+	replacement.Parent = unitFolder
+	requestedUnit.Parent = currentDisplay
+	selectedUnit = requestedUnit.Name
+	ScaleCharacter(requestedUnit, 0.5)
+	requestedUnit:PivotTo(startPoint)
+	local unitAnimation = tweening:Create(requestedUnit.PrimaryPart, TweenInfo.new(1), {CFrame = endPoint})
+	unitAnimation:Play()
+	unitAnimation.Completed:Wait()
+end
+
+spawnMenu.OnClientEvent:Connect(function(cameraPos : CFrame, startPos : CFrame, endPos : CFrame, origin : Model)
+	barracksLocation = origin
+	triggerProximity()
+	startPoint = startPos
+	endPoint = endPos
+	camera.CameraType = Enum.CameraType.Scriptable
+	task.wait(0.5)
+	changeTransparency(0.8)
+	local cutscene = tweening:Create(camera, TweenInfo.new(1), {CFrame = cameraPos})
+	cutscene:Play()
+	cutscene.Completed:Wait()
+	menu.Visible = true
+	info.Visible = true
+	local unit = displayUnit(unitFolder.Soldier)
+end)
+
+
+function closeMenu()
+	barracksLocation = nil
+	triggerProximity()
+	currentDisplay:ClearAllChildren()
+	spawnMenu:FireServer()
+	camera.CameraType = Enum.CameraType.Custom
+	changeTransparency(0)
+	menu.Visible = false
+	info.Visible = false
+end
+
+function changeTransparency(number : number, model : Model)
+	for index, parts in pairs(user.Character:GetDescendants()) do
+		if (parts:IsA("BasePart") or parts:IsA("UnionOperation")) and parts.Name ~= "HumanoidRootPart" then
+			parts.Transparency = number
+		end
+	end
+end
+
+for index, guis in pairs(menu.Selection:GetChildren()) do
+	if guis:IsA("TextButton") then
+		guis.MouseButton1Click:Connect(function()
+			if guis.Name == "WIP" then
+				displayUnit(unitFolder.Unknown)
+			else
+				displayUnit(unitFolder.Soldier)
+			end
+		end)
+	end
+end
+
+menu.Close.MouseButton1Click:Connect(closeMenu)
+
+confirmUnit.MouseButton1Click:Connect(function()
+	triggerProximity()
+	if selectedUnit ~= nil then
+		currentDisplay:ClearAllChildren()
+		task.wait()
+		spawnUnit:FireServer(selectedUnit, barracksLocation)
+		selectedUnit = nil
+		barracksLocation = nil
+		closeMenu()
+	end
+end)
+
+-- THIS GOES INTO THE SERVER SIDE COMPONENTS --
+
+local proximityPrompt = script.Parent.Prox.SpawnMenu
+local startPoint = script.Parent.Start.CFrame
+local endPoint = script.Parent.End.CFrame
+
+local promptSpawnMenu = game.ReplicatedStorage.SpawnMenu
+local spawnUnit = game.ReplicatedStorage.SpawnUnit
+
+local unitManager = require(game.ServerScriptService.UnitModule)
+
+proximityPrompt.Triggered:Connect(function(player)
+	promptSpawnMenu:FireClient(player, script.Parent.Camera.CFrame, startPoint, endPoint, script.Parent)
+	proximityPrompt.Enabled = false
+end)
+
+promptSpawnMenu.OnServerEvent:Connect(function()
+	proximityPrompt.Enabled = true
+end)
+
+spawnUnit.OnServerEvent:Connect(function(player, unit, barracksLocation : Model)
+	if script.Parent ~= barracksLocation then return end
+	local clone = game.Workspace.UnitDisplay:FindFirstChild(unit):Clone()
+	setUp(clone)
+	clone:SetAttribute("Owner", player.Name)
+	clone.Parent = game.Workspace.Units
+	clone:PivotTo(script.Parent.SpawnPos.CFrame)
+	clone.PrimaryPart.Anchored = false
+	unitManager.Attack(clone)
+end)
+
+function setUp(unit)
+	local highlight = Instance.new("Highlight")
+	highlight.Parent = unit
+	highlight.FillTransparency = 0.6
+	highlight.OutlineTransparency = 0
+	highlight.FillColor = Color3.new(188/255, 1, 183/255)
+	highlight.OutlineColor = Color3.new(92/255, 1, 83/255)
+	highlight.Enabled = false
+	
+	for _, parts in pairs(unit:GetDescendants()) do
+		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
+			parts.CollisionGroup = "Troops"
+		end
+	end
+end
