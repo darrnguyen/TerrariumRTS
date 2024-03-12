@@ -1,0 +1,124 @@
+local unitModule = {
+	["Soldier"] = {
+		["Damage"] = 4,
+		["Speed"] = 1.5,
+		["Distance"] = 7.5,
+		["Firerate"] = 0.75,
+	}
+}
+
+local terrainDebuffs = {	
+	["Plains"] = 1,
+	["Hilly"] = 0.75,
+	["Mountainous"] = 0.5,
+}
+
+local tweenService = game:GetService("TweenService")
+
+function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number)
+	local list = game.Workspace.Units:GetChildren()
+	local Target = nil
+	local Distance = Sight
+	local temp = nil
+	local temp2 = nil
+	local human = nil
+	for x = 1, #list do
+		temp2 = list[x]
+		if (temp2.ClassName == "Model") and (temp2 ~= Origin) then
+			temp = temp2:FindFirstChild("HumanoidRootPart")
+			human = temp2:FindFirstChild("Humanoid")
+			if (temp ~= nil) and (human ~= nil) and (human.Health > 0) and temp2:GetAttribute("Owner") ~= "Stickman_132" then
+				if (temp.Position - Pos).Magnitude < Distance then
+					Target = temp
+					Distance = (temp.Position - Pos).magnitude
+				end
+			end
+		end
+	end
+	return Target
+end
+
+function getTerrainType(unit : Model)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = {game.Workspace.MapPieces}
+	raycastParams.FilterType = Enum.RaycastFilterType.Include
+	local raycast = workspace:Raycast(unit.PrimaryPart.Position, Vector3.new(0,-100,0), raycastParams)
+	
+	if raycast ~= nil then
+		local pieces = game.Workspace.MapPieces:GetChildren()
+		local locatePiece = table.find(pieces, raycast.Instance)
+		unit.Humanoid.WalkSpeed = unitModule[unit.Name].Speed * terrainDebuffs[pieces[locatePiece]:GetAttribute("TerrainType")]
+	end
+end
+
+function fire(Origin : Model, target)
+	local targetHumanoid = target.Parent:FindFirstChild("Humanoid")
+	
+	local bullet = Instance.new("Part")
+	bullet.Parent = game.Workspace
+	bullet.Size = Vector3.new(0.05,0.05,0.05)
+	bullet.Anchored = true
+	bullet.Locked = true
+	bullet.Transparency = 1
+	bullet.CanCollide = false
+	bullet.CanTouch = false
+	
+	local att1 = Instance.new("Attachment")
+	att1.Parent = bullet
+	att1.WorldPosition = bullet.Position
+	
+	local att2 = att1:Clone()
+	att2.Parent = bullet
+	att2.Position = Vector3.new(0,-0.05,0)
+	
+	local trail = Instance.new("Trail")
+	trail.Color = ColorSequence.new(Color3.new(1,1,0))
+	trail.Transparency = NumberSequence.new(0.25)
+	trail.Attachment0 = att2
+	trail.Attachment1 = att1
+	trail.Lifetime = 0.25
+	trail.Parent = bullet
+	trail.FaceCamera = true
+	
+	bullet.Parent = game.Workspace
+	bullet.Position = Origin:FindFirstChildWhichIsA("Tool").FiringPoint.Position
+	
+	task.wait(0.02)
+	
+	local bulletVisual = tweenService:Create(bullet, TweenInfo.new(0.25), {Position = target.Position})
+	bulletVisual:Play()
+	
+	targetHumanoid:TakeDamage(unitModule[Origin.Name].Damage)
+	
+	bulletVisual.Completed:Wait()
+end
+
+function unitModule.Attack(Origin : Model)
+	local unitName = Origin.Name
+	local humanoid = Origin:FindFirstChild("Humanoid")
+	local target = nil
+	
+	if humanoid == nil or unitModule[unitName] == nil then 
+		warn(Origin.Name .. " has missing components!")
+		return 
+	end
+	
+	while humanoid.Health > 0 do
+		target = FindTarget(Origin.Torso.Position, Origin.PrimaryPart.Position, unitModule[unitName].Distance)
+		
+		task.wait(unitModule[unitName].Firerate)
+		
+		getTerrainType(Origin)
+
+		if target ~= nil and humanoid.Health > 0 and (Origin.PrimaryPart.Position - target.Position).Magnitude <= unitModule[unitName].Distance then
+			task.spawn(fire, Origin, target)
+		end
+	end
+	
+	humanoid.Died:Connect(function()
+		task.wait(0.5)
+		Origin:Destroy()
+	end)
+end
+
+return unitModule
