@@ -39,7 +39,7 @@ while task.wait(0.25) do
 	end
 
 	for index, parts in pairs(game.Workspace.Units:GetDescendants()) do
-		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
+		if (parts:IsA("BasePart") or parts:IsA("UnionOperation")) and not (parts.Parent:IsA("Tool") or parts.Parent:IsA("Accessory")) then
 			parts.CanCollide = true
 			parts.CanTouch = true
 		end
@@ -50,7 +50,7 @@ while task.wait(0.25) do
 			local contactedParts = game.Workspace:GetPartsInPart(parts, params)
 
 			for index, detectedParts in pairs(contactedParts) do
-				if not table.find(mapPieceData[parts], detectedParts.Parent) and detectedParts:IsDescendantOf(game.Workspace.Units) then
+				if not table.find(mapPieceData[parts], detectedParts.Parent) and detectedParts:IsDescendantOf(game.Workspace.Units) and not (detectedParts.Parent:IsA("Tool") or detectedParts.Parent:IsA("Accessory")) then
 					table.insert(mapPieceData[parts], detectedParts.Parent)
 				else
 					continue
@@ -61,26 +61,31 @@ while task.wait(0.25) do
 	end
 
 	task.wait(0.25)
+	local success, result = pcall(function()
+		for index, parts in pairs(mapPieceData) do
 
-	for index, parts in pairs(mapPieceData) do
+			if #parts > 0 then
 
-		if #parts > 0 then
+				local claims = {}
 
-			local claims = {}
+				for players, _ in pairs(leaders) do
+					claims[players] = 0
+				end
 
-			for players, _ in pairs(leaders) do
-				claims[players] = 0
-			end
+				for index1, units in pairs(parts) do
+					local leader = units:GetAttribute("Owner")
+					claims[leader] += 1
+				end
 
-			for index1, units in pairs(parts) do
-				local leader = units:GetAttribute("Owner")
-				claims[leader] += 1
-			end
-
-			local results = mostUnits(claims)
-			if results ~= nil then
-				index.Color = leaders[results]
+				local results = mostUnits(claims)
+				if results ~= nil then
+					index.Color = leaders[results]
+					index:SetAttribute("LandOwner", results)
+				end
 			end
 		end
+	end)
+	if result ~= nil then
+		warn(result)
 	end
 end
