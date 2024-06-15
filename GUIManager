@@ -1,0 +1,139 @@
+local countryClaims = game.ReplicatedStorage.CountryClaims
+local retrieveInfo = game.ReplicatedStorage.RetrieveInfo
+
+local terrainModeActive = false
+local mapPieces = game.Workspace.MapPieces
+
+local player = game:GetService("Players").LocalPlayer
+local otherUIs = script.Parent.Parent:WaitForChild("OtherUIs")
+
+local colors = {
+	["Plains"] = Color3.new(75/255, 151/255, 75/255), -- bright green
+	["Hilly"] = Color3.new(39/255, 70/255, 45/255), -- earth green
+	["Mountainous"] = Color3.new(124/255, 92/255, 70/255), -- brown
+	["Arctic"] = Color3.new(242/255, 243/255, 243/255), -- white
+	["LavenderForest"] = Color3.new(140/255, 91/255, 159/255), -- lavender
+	["CytomicForest"] = Color3.new(4/255, 175/255, 236/255), -- cyan
+	["SunBiome"] = Color3.new(239/255, 184/255, 56/255), -- gold
+}
+
+-- [TERRAIN TOGGLE] --
+
+script.Parent.IndexButton.MouseButton1Down:Connect(function()
+
+	script.Parent.Parent.OtherUIs.TerrainTypes.Visible = not script.Parent.Parent.OtherUIs.TerrainTypes.Visible
+
+	if terrainModeActive == true then
+		terrainModeActive = false
+		setTransparency(mapPieces, 0)
+
+		game.Workspace:FindFirstChild("TerrainParts"):Destroy()
+	elseif terrainModeActive == false then
+		terrainModeActive = true
+
+		local TerrainParts = game.Workspace.MapPieces:Clone()
+		local TerrainTable = TerrainParts:GetChildren()
+		TerrainParts.Parent = game.Workspace
+		TerrainParts.Name = "TerrainParts"
+
+		for index, parts in pairs(TerrainTable) do
+			if parts.Name ~= "TempOceanPlaceHolder" then
+				local terrainType = colors[parts:GetAttribute("TerrainType")]
+				-- parts.Color = colors[parts:GetAttribute("TerrainType")]
+				if terrainType == nil then continue end
+				parts.Color = terrainType
+			end
+		end
+
+		setTransparency(mapPieces, 1)
+	end
+end)
+
+function setTransparency(folder, transparency)
+	for index, parts in pairs(folder:GetChildren()) do
+		if parts.Name == "MapPiece" then
+			parts.Transparency = transparency
+		end
+	end
+end
+
+-- [BUILD COUNTRY] --
+function checkStatus()
+	otherUIs.CountryCreation.Visible = false
+	local info = retrieveInfo:InvokeServer()
+	print(info, player.Name)
+	if info[player.Name] == nil then
+		otherUIs.CountryManager.ClaimCountry.Visible = true
+		otherUIs.CountryManager.DisbandCountry.Visible = false
+	else
+		otherUIs.CountryManager.ClaimCountry.Visible = false
+		otherUIs.CountryManager.DisbandCountry.Visible = true
+	end
+end
+
+otherUIs.CountryManager.ClaimCountry.MouseButton1Click:Connect(function()
+	otherUIs.CountryManager.Visible = false
+	otherUIs.CountryCreation.Visible = true
+end)
+
+local countryCreator = otherUIs.CountryCreation
+local countryName = countryCreator.CountryName
+local colorConfirm = countryCreator.ColorConfirm
+local createCountry = countryCreator.ClaimCountry
+
+local countryManager = otherUIs.CountryManager
+local disband = countryManager.DisbandCountry
+
+countryName:GetPropertyChangedSignal("Text"):Connect(function()
+	if countryName.TextFits then
+		countryName.TextXAlignment = Enum.TextXAlignment.Center
+	else
+		countryName.TextXAlignment = Enum.TextXAlignment.Right
+	end
+end)
+
+countryName.FocusLost:Connect(function()
+	countryName.Text = game.Chat:FilterStringForBroadcast(countryName.Text, player)
+end)
+
+createCountry.MouseButton1Click:Connect(function()
+	countryClaims:FireServer(countryName.Text, colorConfirm.BackgroundColor)
+	countryCreator.Visible = false
+end)
+
+for index, buttons in pairs(countryCreator.BTPaintToolGUI:GetDescendants()) do
+	if buttons:IsA("TextButton") then
+		buttons.MouseButton1Click:Connect(function()
+			colorConfirm.BackgroundColor = buttons.BackgroundColor
+		end)
+	end
+end
+
+disband.MouseButton1Click:Connect(function()
+	if disband.Text == "Disband Country" then
+		disband.Text = "Are you sure?"
+		task.wait(2.5)
+		disband.Text = "Disband Country"
+	elseif disband.Text == "Are you sure?" then
+		countryClaims:FireServer(player, nil, nil)
+	end
+end)
+
+-- [MAIN CONTROLS] --
+
+script.Parent.TutorialButton.MouseButton1Click:Connect(function()
+	otherUIs.Tutorial.Visible = not otherUIs.Tutorial.Visible
+end)
+
+local cbDebounce = false
+
+script.Parent.CountryButton.MouseButton1Click:Connect(function()
+	if cbDebounce == true then return end
+	cbDebounce = true
+	otherUIs.CountryManager.Visible = not otherUIs.CountryManager.Visible
+	if otherUIs.CountryManager.Visible == true then
+		checkStatus()
+	end
+	task.wait(0.1)
+	cbDebounce = false
+end)
