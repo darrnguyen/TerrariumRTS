@@ -4,12 +4,17 @@ params.FilterType = Enum.RaycastFilterType.Include
 
 local mapPieceData = {}
 
+--[[
 local leaders = {
 	["Stickman_132"] = Color3.new(0.2, 0.2, 1),
 	["Test"] = Color3.new(0.5,0.5,0.5),
 }
+]]--
+
+local countryModule = require(game.ServerScriptService.CountryModule)
 
 function mostUnits(categories)
+	--[[
 	local maxItems = -1
 	local largestCategory = nil
 	local tie = false
@@ -23,10 +28,33 @@ function mostUnits(categories)
 			tie = true		
 		end
 	end
+	
+	print(tie, largestCategory)
+	
 	if tie == false then
 		return largestCategory
 	else
 		return nil
+	end
+	]]--
+	local maxItems = -1
+	local largestCategory = nil
+	local count = 1
+
+	for player, items in pairs(categories) do
+		if items > maxItems then
+			maxItems = items
+			largestCategory = player
+			count = 1
+		elseif items == maxItems then
+			count += 1
+		end
+	end
+
+	if count > 1 then
+		return nil
+	else
+		return largestCategory
 	end
 end
 
@@ -46,7 +74,7 @@ while task.wait(0.25) do
 	end
 
 	for index, parts in pairs(game.Workspace.MapPieces:GetChildren()) do
-		if parts:IsA("UnionOperation") then
+		if parts:IsA("UnionOperation") or parts:IsA("PartOperation") then
 			local contactedParts = game.Workspace:GetPartsInPart(parts, params)
 
 			for index, detectedParts in pairs(contactedParts) do
@@ -60,17 +88,22 @@ while task.wait(0.25) do
 		end
 	end
 
+	-- print(mapPieceData)
+
 	task.wait(0.25)
 	local success, result = pcall(function()
 		for index, parts in pairs(mapPieceData) do
 
 			if #parts > 0 then
 
+				local leaders = countryModule.getInfo()
 				local claims = {}
 
 				for players, _ in pairs(leaders) do
 					claims[players] = 0
 				end
+
+				task.wait()
 
 				for index1, units in pairs(parts) do
 					local leader = units:GetAttribute("Owner")
@@ -79,7 +112,7 @@ while task.wait(0.25) do
 
 				local results = mostUnits(claims)
 				if results ~= nil then
-					index.Color = leaders[results]
+					index.BrickColor = leaders[results]["Color"]
 					index:SetAttribute("LandOwner", results)
 				end
 			end
