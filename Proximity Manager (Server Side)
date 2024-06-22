@@ -1,0 +1,54 @@
+local countryManager = require(game.ServerScriptService.CountryModule)
+local promptSpawnMenu = game.ReplicatedStorage.SpawnMenu
+local spawnUnit = game.ReplicatedStorage.SpawnUnit
+
+for index, barracks in pairs(game.Workspace.MapContent:GetChildren()) do
+	local proximityPrompt = barracks.Prox.SpawnMenu
+
+	local unitManager = require(game.ServerScriptService.UnitModule)
+
+	proximityPrompt.Triggered:Connect(function(player)
+		promptSpawnMenu:FireClient(player, barracks)
+		proximityPrompt.Enabled = false
+	end)
+
+	promptSpawnMenu.OnServerEvent:Connect(function()
+		proximityPrompt.Enabled = true
+	end)
+
+	spawnUnit.OnServerEvent:Connect(function(player, unit, barracksLocation : Model)
+		if barracks ~= barracksLocation then return end
+		local clone = game.Workspace.UnitDisplay:FindFirstChild(unit):Clone()
+		setUp(clone)
+		clone:SetAttribute("Owner", player.Name)
+		clone.Parent = game.Workspace.Units
+		clone:PivotTo(barracks.SpawnPos.CFrame)
+		clone.PrimaryPart.Anchored = false
+		unitManager.Attack(clone)
+	end)
+
+	function setUp(unit)
+		--[[
+		local highlight = Instance.new("Highlight")
+		highlight.Parent = unit
+		highlight.FillTransparency = 0.6
+		highlight.OutlineTransparency = 0
+		highlight.FillColor = Color3.new(188/255, 1, 183/255)
+		highlight.OutlineColor = Color3.new(92/255, 1, 83/255)
+		highlight.Enabled = false
+		]]--
+
+		for _, parts in pairs(unit:GetDescendants()) do
+			if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
+				parts.CollisionGroup = "Troops"
+			elseif parts:IsA("Humanoid") then
+				parts.EvaluateStateMachine = false
+				parts:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+				parts:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+				parts:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+				parts:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+				parts:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			end
+		end
+	end
+end
