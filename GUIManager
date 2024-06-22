@@ -1,4 +1,5 @@
 local countryClaims = game.ReplicatedStorage.CountryClaims
+local disbandTroops = game.ReplicatedStorage.RemoveTroops
 local retrieveInfo = game.ReplicatedStorage.RetrieveInfo
 
 local terrainModeActive = false
@@ -64,10 +65,10 @@ function checkStatus()
 	print(info, player.Name)
 	if info[player.Name] == nil then
 		otherUIs.CountryManager.ClaimCountry.Visible = true
-		otherUIs.CountryManager.DisbandCountry.Visible = false
+		otherUIs.CountryManager.ActualManager.Visible = false
 	else
 		otherUIs.CountryManager.ClaimCountry.Visible = false
-		otherUIs.CountryManager.DisbandCountry.Visible = true
+		otherUIs.CountryManager.ActualManager.Visible = true
 	end
 end
 
@@ -82,7 +83,8 @@ local colorConfirm = countryCreator.ColorConfirm
 local createCountry = countryCreator.ClaimCountry
 
 local countryManager = otherUIs.CountryManager
-local disband = countryManager.DisbandCountry
+local disband = countryManager.ActualManager.DisbandCountry
+local disbandArmy = countryManager.ActualManager.DisbandArmy
 
 countryName:GetPropertyChangedSignal("Text"):Connect(function()
 	if countryName.TextFits then
@@ -97,6 +99,24 @@ countryName.FocusLost:Connect(function()
 end)
 
 createCountry.MouseButton1Click:Connect(function()
+	local verifyValidity = retrieveInfo:InvokeServer()
+	
+	for index, values in pairs(verifyValidity) do
+		if colorConfirm.BackgroundColor == values.Color then
+			createCountry.Text = "This color is taken!"
+			task.wait(1)
+			createCountry.Text = "Create Country"
+			return
+		end
+		if countryName.Text == values.Name then
+			createCountry.Text = "This name is taken!"
+			task.wait(1)
+			createCountry.Text = "Create Country"
+			return
+		end
+		task.wait()
+	end
+	
 	countryClaims:FireServer(countryName.Text, colorConfirm.BackgroundColor)
 	countryCreator.Visible = false
 end)
@@ -105,6 +125,7 @@ for index, buttons in pairs(countryCreator.BTPaintToolGUI:GetDescendants()) do
 	if buttons:IsA("TextButton") then
 		buttons.MouseButton1Click:Connect(function()
 			colorConfirm.BackgroundColor = buttons.BackgroundColor
+			countryCreator.ColorConfirmText.Text = buttons.Name
 		end)
 	end
 end
@@ -115,7 +136,19 @@ disband.MouseButton1Click:Connect(function()
 		task.wait(2.5)
 		disband.Text = "Disband Country"
 	elseif disband.Text == "Are you sure?" then
-		countryClaims:FireServer(player, nil, nil)
+		countryClaims:FireServer(nil, nil)
+		countryManager.Visible = false
+	end
+end)
+
+disbandArmy.MouseButton1Click:Connect(function()
+	if disbandArmy.Text == "Disband Troops" then
+		disbandArmy.Text = "Are you sure?"
+		task.wait(2.5)
+		disbandArmy.Text = "Disband Troops"
+	elseif disbandArmy.Text == "Are you sure?" then
+		disbandTroops:FireServer()
+		disbandArmy.Text = "Disband Troops"
 	end
 end)
 
