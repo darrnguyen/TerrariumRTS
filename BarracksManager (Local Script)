@@ -1,5 +1,3 @@
--- THIS GOES INTO CLIENT GUI -- 
-
 local tweening = game:GetService("TweenService")
 local user = game:GetService("Players").LocalPlayer
 local camera = game.Workspace.CurrentCamera
@@ -17,6 +15,12 @@ local endPoint: Vector3
 local confirmUnit = menu.Spawn
 local barracksLocation = nil
 local selectedUnit = nil
+
+local unitDescriptions = {
+	["Soldier"] = "Insert stats here",
+	["Scout"]  = "Insert stats here",
+	["Tank"] = "Tonk",
+}
 
 function triggerProximity()
 	for _, parts in pairs(mapContent:GetDescendants()) do
@@ -66,29 +70,21 @@ function ScaleCharacter(Character: Model,Scale : number)
 end
 
 function displayUnit(requestedUnit)
+	info.TextLabel.Text = unitDescriptions[requestedUnit.Name]
+	
 	currentDisplay:ClearAllChildren()
 	local replacement = requestedUnit:Clone()
 	replacement.Parent = unitFolder
 	requestedUnit.Parent = currentDisplay
 	selectedUnit = requestedUnit.Name
 	ScaleCharacter(requestedUnit, 0.5)
-	requestedUnit:PivotTo(startPoint)
-	local unitAnimation = tweening:Create(requestedUnit.PrimaryPart, TweenInfo.new(1), {CFrame = endPoint})
-	unitAnimation:Play()
-	unitAnimation.Completed:Wait()
 end
 
-spawnMenu.OnClientEvent:Connect(function(cameraPos : CFrame, startPos : CFrame, endPos : CFrame, origin : Model)
+spawnMenu.OnClientEvent:Connect(function(origin: Model)
 	barracksLocation = origin
 	triggerProximity()
-	startPoint = startPos
-	endPoint = endPos
-	camera.CameraType = Enum.CameraType.Scriptable
 	task.wait(0.5)
 	changeTransparency(0.8)
-	local cutscene = tweening:Create(camera, TweenInfo.new(1), {CFrame = cameraPos})
-	cutscene:Play()
-	cutscene.Completed:Wait()
 	menu.Visible = true
 	info.Visible = true
 	local unit = displayUnit(unitFolder.Soldier)
@@ -119,8 +115,12 @@ for index, guis in pairs(menu.Selection:GetChildren()) do
 		guis.MouseButton1Click:Connect(function()
 			if guis.Name == "WIP" then
 				displayUnit(unitFolder.Unknown)
-			else
+			elseif guis.Name == "Soldier" then
 				displayUnit(unitFolder.Soldier)
+			elseif guis.Name == "Scout" then
+				displayUnit(unitFolder.Scout)
+			elseif guis.Name == "Tank" then
+				displayUnit(unitFolder.Tank)
 			end
 		end)
 	end
@@ -129,7 +129,6 @@ end
 menu.Close.MouseButton1Click:Connect(closeMenu)
 
 confirmUnit.MouseButton1Click:Connect(function()
-	triggerProximity()
 	if selectedUnit ~= nil then
 		currentDisplay:ClearAllChildren()
 		task.wait()
@@ -139,50 +138,3 @@ confirmUnit.MouseButton1Click:Connect(function()
 		closeMenu()
 	end
 end)
-
--- THIS GOES INTO THE SERVER SIDE COMPONENTS --
-
-local proximityPrompt = script.Parent.Prox.SpawnMenu
-local startPoint = script.Parent.Start.CFrame
-local endPoint = script.Parent.End.CFrame
-
-local promptSpawnMenu = game.ReplicatedStorage.SpawnMenu
-local spawnUnit = game.ReplicatedStorage.SpawnUnit
-
-local unitManager = require(game.ServerScriptService.UnitModule)
-
-proximityPrompt.Triggered:Connect(function(player)
-	promptSpawnMenu:FireClient(player, script.Parent.Camera.CFrame, startPoint, endPoint, script.Parent)
-	proximityPrompt.Enabled = false
-end)
-
-promptSpawnMenu.OnServerEvent:Connect(function()
-	proximityPrompt.Enabled = true
-end)
-
-spawnUnit.OnServerEvent:Connect(function(player, unit, barracksLocation : Model)
-	if script.Parent ~= barracksLocation then return end
-	local clone = game.Workspace.UnitDisplay:FindFirstChild(unit):Clone()
-	setUp(clone)
-	clone:SetAttribute("Owner", player.Name)
-	clone.Parent = game.Workspace.Units
-	clone:PivotTo(script.Parent.SpawnPos.CFrame)
-	clone.PrimaryPart.Anchored = false
-	unitManager.Attack(clone)
-end)
-
-function setUp(unit)
-	local highlight = Instance.new("Highlight")
-	highlight.Parent = unit
-	highlight.FillTransparency = 0.6
-	highlight.OutlineTransparency = 0
-	highlight.FillColor = Color3.new(188/255, 1, 183/255)
-	highlight.OutlineColor = Color3.new(92/255, 1, 83/255)
-	highlight.Enabled = false
-	
-	for _, parts in pairs(unit:GetDescendants()) do
-		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
-			parts.CollisionGroup = "Troops"
-		end
-	end
-end
