@@ -4,18 +4,40 @@ local unitModule = {
 		["Speed"] = 1.5,
 		["Distance"] = 7.5,
 		["Firerate"] = 0.75,
+	},
+	["Scout"] = {
+		["Damage"] = 2,
+		["Speed"] = 2,
+		["Distance"] = 5,
+		["Firerate"] = 1,
+	},
+	["Tank"] = {
+		["Damage"] = 25,
+		["Speed"] = 1.1,
+		["Distance"] = 7.5,
+		["Firerate"] = 2.5,
 	}
 }
 
 local terrainDebuffs = {	
 	["Plains"] = 1,
-	["Hilly"] = 0.75,
+	["Hilly"] = 0.8,
 	["Mountainous"] = 0.5,
+	["Arctic"] = 0.35,
+	["Ocean"] = 2,
+
+	["LavenderForest"] = 1,
+	["CytomicForest"] = 1,
+	["SunBiome"] = 0.85,
 }
 
+-- [UNIT MANAGER] --
+
+-- Idle, up, shoot, down, run
+local tempAnimTable = {16745460770, 16745466315, 16745463460, 16745469084, 16745472209}
 local tweenService = game:GetService("TweenService")
 
-function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number)
+function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number, OriginOwner : string)
 	local list = game.Workspace.Units:GetChildren()
 	local Target = nil
 	local Distance = Sight
@@ -27,7 +49,7 @@ function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number)
 		if (temp2.ClassName == "Model") and (temp2 ~= Origin) then
 			temp = temp2:FindFirstChild("HumanoidRootPart")
 			human = temp2:FindFirstChild("Humanoid")
-			if (temp ~= nil) and (human ~= nil) and (human.Health > 0) and temp2:GetAttribute("Owner") ~= "Stickman_132" then
+			if (temp ~= nil) and (human ~= nil) and (human.Health > 0) and temp2:GetAttribute("Owner") ~= OriginOwner then
 				if (temp.Position - Pos).Magnitude < Distance then
 					Target = temp
 					Distance = (temp.Position - Pos).magnitude
@@ -38,22 +60,29 @@ function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number)
 	return Target
 end
 
-function getTerrainType(unit : Model)
+function getLandInfo(unit : Model)
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = {game.Workspace.MapPieces}
 	raycastParams.FilterType = Enum.RaycastFilterType.Include
+	if unit.PrimaryPart == nil then return end
 	local raycast = workspace:Raycast(unit.PrimaryPart.Position, Vector3.new(0,-100,0), raycastParams)
-	
+
 	if raycast ~= nil then
 		local pieces = game.Workspace.MapPieces:GetChildren()
 		local locatePiece = table.find(pieces, raycast.Instance)
 		unit.Humanoid.WalkSpeed = unitModule[unit.Name].Speed * terrainDebuffs[pieces[locatePiece]:GetAttribute("TerrainType")]
+
+--[[		
+		if unit:GetAttribute("Owner") ~= pieces[locatePiece]:GetAttribute("LandOwner") and pieces[locatePiece].Name ~= "TempOceanPlaceHolder" then
+			pieces[locatePiece]:SetAttribute(unit:GetAttribute("Owner"))
+			pieces[locatePiece].Color = leaders[unit:GetAttribute("Owner")]
+		end ]]--
 	end
 end
 
 function fire(Origin : Model, target)
 	local targetHumanoid = target.Parent:FindFirstChild("Humanoid")
-	
+
 	local bullet = Instance.new("Part")
 	bullet.Parent = game.Workspace
 	bullet.Size = Vector3.new(0.05,0.05,0.05)
@@ -62,15 +91,15 @@ function fire(Origin : Model, target)
 	bullet.Transparency = 1
 	bullet.CanCollide = false
 	bullet.CanTouch = false
-	
+
 	local att1 = Instance.new("Attachment")
 	att1.Parent = bullet
 	att1.WorldPosition = bullet.Position
-	
+
 	local att2 = att1:Clone()
 	att2.Parent = bullet
 	att2.Position = Vector3.new(0,-0.05,0)
-	
+
 	local trail = Instance.new("Trail")
 	trail.Color = ColorSequence.new(Color3.new(1,1,0))
 	trail.Transparency = NumberSequence.new(0.25)
@@ -79,46 +108,112 @@ function fire(Origin : Model, target)
 	trail.Lifetime = 0.25
 	trail.Parent = bullet
 	trail.FaceCamera = true
-	
+
 	bullet.Parent = game.Workspace
-	bullet.Position = Origin:FindFirstChildWhichIsA("Tool").FiringPoint.Position
-	
+	-- bullet.Position = Origin:WaitForChild("Tool").FiringPoint.Position 
+	if Origin:FindFirstChild("Weapon") ~= nil then
+		bullet.Position = Origin:FindFirstChild("Weapon").FiringPoint.Position
+	else
+		bullet.Position = Origin.FiringPoint.Position
+	end
+
 	task.wait(0.02)
-	
+
 	local bulletVisual = tweenService:Create(bullet, TweenInfo.new(0.25), {Position = target.Position})
 	bulletVisual:Play()
-	
+
 	targetHumanoid:TakeDamage(unitModule[Origin.Name].Damage)
-	
+
 	bulletVisual.Completed:Wait()
 end
+
+local tempRemote = game.ReplicatedStorage.TEMPSPAWNREMOTE
+local removeTroops = game.ReplicatedStorage.RemoveTroops
+
+tempRemote.OnServerEvent:Connect(function(player, position)
+
+	local countryModule = require(game.ServerScriptService.CountryModule)
+	local leaders = countryModule.getInfo()
+	if leaders[player.Name] == nil then
+		print("requires country first")
+		return
+	end
+
+	local clone = workspace.UnitDisplay.Soldier:Clone()
+	clone:SetAttribute("Owner", player.Name)
+	clone.Parent = game.Workspace.Units
+	clone.PrimaryPart.Anchored = false
+	clone:PivotTo(CFrame.new(position))
+
+	for index, parts in pairs(clone:GetDescendants()) do
+		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
+			parts.CollisionGroup = "Troops"
+		elseif parts:IsA("Humanoid") then
+			parts:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+			parts:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+		end
+	end
+	
+	task.wait(0.5)
+	
+	clone.PrimaryPart.Anchored = true
+
+	unitModule.Attack(clone)
+end)
+
+removeTroops.OnServerEvent:Connect(function(player)
+	for index, units in pairs(workspace.Units:GetChildren()) do
+		if units:GetAttribute("Owner") == player.Name then
+			units:Destroy()
+		end
+	end
+end)
 
 function unitModule.Attack(Origin : Model)
 	local unitName = Origin.Name
 	local humanoid = Origin:FindFirstChild("Humanoid")
 	local target = nil
-	
+	-- local animTrack = humanoid:LoadAnimation(humanoid.Animation)
+
 	if humanoid == nil or unitModule[unitName] == nil then 
 		warn(Origin.Name .. " has missing components!")
 		return 
 	end
-	
-	while humanoid.Health > 0 do
-		target = FindTarget(Origin.Torso.Position, Origin.PrimaryPart.Position, unitModule[unitName].Distance)
-		
+
+	-- humanoid.HipHeight = -0.05
+
+	while humanoid.Health > 0 and Origin.Parent ~= nil do
+
+		target = FindTarget(Origin.PrimaryPart.Position, Origin.PrimaryPart.Position, unitModule[unitName].Distance, Origin:GetAttribute("Owner"))
+
 		task.wait(unitModule[unitName].Firerate)
-		
-		getTerrainType(Origin)
+
+		task.spawn(function()
+			while humanoid.Health > 0 do
+				task.wait(0.15)
+				getLandInfo(Origin)
+
+				--[[
+				if math.abs(Origin.PrimaryPart.Velocity.X or Origin.PrimaryPart.Velocity.Z) >= 0.05 and humanoid:FindFirstChild("Animation") ~= nil and animTrack.IsPlaying == false then
+					animTrack:Play()
+				elseif math.abs(Origin.PrimaryPart.Velocity.X and Origin.PrimaryPart.Velocity.Z) < 0.05 and humanoid:FindFirstChild("Animation") ~= nil then
+					animTrack:Stop()
+				end
+				]]--
+			end
+		end)
 
 		if target ~= nil and humanoid.Health > 0 and (Origin.PrimaryPart.Position - target.Position).Magnitude <= unitModule[unitName].Distance then
 			task.spawn(fire, Origin, target)
 		end
 	end
-	
-	humanoid.Died:Connect(function()
-		task.wait(0.5)
-		Origin:Destroy()
-	end)
+	task.wait(0.5)
+	Origin:Destroy()
 end
 
 return unitModule
