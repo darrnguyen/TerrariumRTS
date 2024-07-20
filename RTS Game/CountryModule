@@ -1,0 +1,92 @@
+local countryManager = {}
+
+--[[
+countryManager.__index = countryManager
+
+function countryManager.new(newTable)
+	local newCountry = setmetatable(newTable or {}, countryManager)
+	newCountry.Name = newCountry.Name or "Unknown"
+	newCountry.Color = newCountry.Color or BrickColor.new("Black")
+	newCountry.Leader = newCountry.Leader or "Unknown"
+	newCountry.Population = newCountry.Population or 1
+
+	return newCountry
+end
+
+function countryManager:ChangeName(newName : string)
+	print("Country of", self.Name, "has been changed to" , newName)
+	self.Name = newName
+end
+]]--
+
+local leaders = {
+	["Test"] = {
+		["Color"] = BrickColor.new("Really red"),
+		["Name"] = "Test Country",
+	},
+}
+
+local countryClaims = game.ReplicatedStorage.CountryClaims
+local retrieveInfo = game.ReplicatedStorage.RetrieveInfo
+
+function countryManager.getInfo()
+	return leaders
+end
+
+function countryManager.removePlayer(player : string)
+	leaders[player] = nil
+end
+
+retrieveInfo.OnServerInvoke = function()
+	return leaders
+end
+
+function countryManager.regionSort(t)
+	for index, parts in pairs(workspace.MapPieces:GetChildren()) do
+		if (not parts:IsA("Model")) and parts.Name ~= "TempOceanPlaceHolder" then
+			local volume = parts.Size.X * parts.Size.Y * parts.Size.Z
+			if volume <= t then
+				parts.Color = Color3.new(0.5,0,0)
+			else
+				parts.Color = Color3.new(1,0,0)
+			end
+		end
+	end
+end
+
+countryClaims.OnServerEvent:Connect(function(player, countryName, color)
+	if countryName == nil and color == nil then
+		leaders[player.Name] = nil
+		game.Teams:FindFirstChild(player.Team.Name):Destroy()
+
+		for index, parts in pairs(workspace.MapPieces:GetChildren()) do
+			if not parts:IsA("Model") then
+				if parts:GetAttribute("LandOwner") == player.Name then
+					parts:SetAttribute("LandOwner", nil)
+				end
+			end
+		end
+	else
+		local newTeam = Instance.new("Team")
+		newTeam.Parent = game.Teams
+		newTeam.TeamColor = color
+		newTeam.Name = countryName
+		newTeam.AutoAssignable = false
+		player.Team = newTeam
+
+		leaders[player.Name] = {
+			["Color"] = color,
+			["Name"] = countryName,
+		}
+
+		for index, parts in pairs(workspace.MapPieces:GetChildren()) do
+			if not parts:IsA("Model") then
+				if parts.BrickColor == color then
+					parts:SetAttribute("LandOwner", player.Name)
+				end
+			end
+		end
+	end
+end)
+
+return countryManager
