@@ -1,0 +1,129 @@
+local params = OverlapParams.new()
+params.FilterDescendantsInstances = {game.Workspace.Units}
+params.FilterType = Enum.RaycastFilterType.Include
+
+local mapPieceData = {}
+
+local countryModule = require(game.ServerScriptService.CountryModule)
+
+function mostUnits(categories)
+
+	local maxItems = -1
+	local largestCategory = nil
+	local count = 1
+
+	for player, items in pairs(categories) do
+		if items > maxItems then
+			maxItems = items
+			largestCategory = player
+			count = 1
+		elseif items == maxItems then
+			count += 1
+		end
+	end
+
+	if count > 1 then
+		return nil
+	else
+		return largestCategory
+	end
+end
+
+Players = game:GetService("Players")
+
+Players.PlayerAdded:Connect(function(player)
+
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+
+	local mins = Instance.new("IntValue") 
+	mins.Name = "Money"
+	mins.Parent = stats 
+	stats.Parent = player
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	player.Team:Destroy()
+	countryModule.removePlayer(player.Name)
+end)
+
+addMoney = function()
+	while task.wait(1) do
+		for index, players in pairs(game.Players:GetChildren()) do
+			if players.leaderstats then
+				players.leaderstats.Money.Value += 1
+			end
+		end
+	end
+end
+
+landGrab = function()
+
+	while task.wait(0.25) do
+
+		table.clear(mapPieceData)
+
+		for _, data in pairs(game.Workspace.MapPieces:GetChildren()) do
+			mapPieceData[data] = {}
+		end
+--[[
+	for index, parts in pairs(game.Workspace.Units:GetDescendants()) do
+		if (parts:IsA("BasePart") or parts:IsA("UnionOperation")) and not (parts.Parent:IsA("Tool") or parts.Parent:IsA("Accessory")) then
+			parts.CanCollide = true
+			parts.CanTouch = true
+		end
+	end
+]]--
+		for index, parts in pairs(game.Workspace.MapPieces:GetChildren()) do
+			if parts:IsA("UnionOperation") or parts:IsA("PartOperation") then
+				local contactedParts = game.Workspace:GetPartsInPart(parts, params)
+
+				for index, detectedParts in pairs(contactedParts) do
+					if not table.find(mapPieceData[parts], detectedParts.Parent) and detectedParts:IsDescendantOf(game.Workspace.Units) and not (detectedParts.Parent:IsA("Tool") or detectedParts.Parent:IsA("Accessory")) then
+						table.insert(mapPieceData[parts], detectedParts.Parent)
+					else
+						continue
+						-- print(mapPieceData[parts])
+					end
+				end
+			end
+		end
+
+		-- print(mapPieceData)
+
+		task.wait(0.25)
+		local success, result = pcall(function()
+			for index, parts in pairs(mapPieceData) do
+
+				if #parts > 0 then
+
+					local leaders = countryModule.getInfo()
+					local claims = {}
+
+					for players, _ in pairs(leaders) do
+						claims[players] = 0
+					end
+
+					task.wait()
+
+					for index1, units in pairs(parts) do
+						local leader = units:GetAttribute("Owner")
+						claims[leader] += 1
+					end
+
+					local results = mostUnits(claims)
+					if results ~= nil then
+						index.BrickColor = leaders[results]["Color"]
+						index:SetAttribute("LandOwner", results)
+					end
+				end
+			end
+		end)
+		if result ~= nil then
+--			warn(result)
+		end
+	end
+end
+
+task.spawn(landGrab)
+task.spawn(addMoney)
