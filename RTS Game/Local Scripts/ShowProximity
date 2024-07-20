@@ -1,0 +1,12 @@
+local player = game:GetService("Players").LocalPlayer
+local mapContent = workspace.MapContent
+
+for index, items in pairs(mapContent:GetChildren()) do
+	items:GetAttributeChangedSignal("Owner"):Connect(function()
+		if items:GetAttribute("Owner") ~= player.Name then
+			items.Prox:FindFirstChildWhichIsA("ProximityPrompt").Enabled = false
+		elseif items:GetAttribute("Owner") == player.Name then
+			items.Prox:FindFirstChildWhichIsA("ProximityPrompt").Enabled = true
+		end
+	end)
+end
