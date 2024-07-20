@@ -37,29 +37,6 @@ local terrainDebuffs = {
 local tempAnimTable = {16745460770, 16745466315, 16745463460, 16745469084, 16745472209}
 local tweenService = game:GetService("TweenService")
 
-function FindTarget(Pos : Vector3, Origin : Vector3, Sight : number, OriginOwner : string)
-	local list = game.Workspace.Units:GetChildren()
-	local Target = nil
-	local Distance = Sight
-	local temp = nil
-	local temp2 = nil
-	local human = nil
-	for x = 1, #list do
-		temp2 = list[x]
-		if (temp2.ClassName == "Model") and (temp2 ~= Origin) then
-			temp = temp2:FindFirstChild("HumanoidRootPart")
-			human = temp2:FindFirstChild("Humanoid")
-			if (temp ~= nil) and (human ~= nil) and (human.Health > 0) and temp2:GetAttribute("Owner") ~= OriginOwner then
-				if (temp.Position - Pos).Magnitude < Distance then
-					Target = temp
-					Distance = (temp.Position - Pos).magnitude
-				end
-			end
-		end
-	end
-	return Target
-end
-
 function getLandInfo(unit : Model)
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = {game.Workspace.MapPieces}
@@ -70,7 +47,7 @@ function getLandInfo(unit : Model)
 	if raycast ~= nil then
 		local pieces = game.Workspace.MapPieces:GetChildren()
 		local locatePiece = table.find(pieces, raycast.Instance)
-		unit.Humanoid.WalkSpeed = unitModule[unit.Name].Speed * terrainDebuffs[pieces[locatePiece]:GetAttribute("TerrainType")]
+		-- unit.Humanoid.WalkSpeed = unitModule[unit.Name].Speed * terrainDebuffs[pieces[locatePiece]:GetAttribute("TerrainType")]
 
 --[[		
 		if unit:GetAttribute("Owner") ~= pieces[locatePiece]:GetAttribute("LandOwner") and pieces[locatePiece].Name ~= "TempOceanPlaceHolder" then
@@ -145,6 +122,9 @@ tempRemote.OnServerEvent:Connect(function(player, position)
 	clone.PrimaryPart.Anchored = false
 	clone:PivotTo(CFrame.new(position))
 
+	local renderUnit = game.ReplicatedStorage.RenderUnit
+	renderUnit:FireAllClients(clone)
+
 	for index, parts in pairs(clone:GetDescendants()) do
 		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
 			parts.CollisionGroup = "Troops"
@@ -158,58 +138,73 @@ tempRemote.OnServerEvent:Connect(function(player, position)
 			parts:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 		end
 	end
-	
+
 	task.wait(0.5)
-	
+
 	clone.PrimaryPart.Anchored = true
 
 	unitModule.Attack(clone)
 end)
 
-removeTroops.OnServerEvent:Connect(function(player)
-	for index, units in pairs(workspace.Units:GetChildren()) do
-		if units:GetAttribute("Owner") == player.Name then
-			units:Destroy()
+removeTroops.OnServerEvent:Connect(function(player, units)
+	if units == nil then
+		for index, units in pairs(workspace.Units:GetChildren()) do
+			if units:GetAttribute("Owner") == player.Name then
+				units:Destroy()
+			end
+		end
+	else
+		for index, unit in pairs(units) do
+			if table.find(workspace.Units:GetChildren(), unit) then
+				unit:Destroy()
+			end
 		end
 	end
 end)
 
+local params = OverlapParams.new()
+params.FilterDescendantsInstances = {game.Workspace.Units}
+params.FilterType = Enum.RaycastFilterType.Include
+
 function unitModule.Attack(Origin : Model)
 	local unitName = Origin.Name
 	local humanoid = Origin:FindFirstChild("Humanoid")
-	local target = nil
-	-- local animTrack = humanoid:LoadAnimation(humanoid.Animation)
 
 	if humanoid == nil or unitModule[unitName] == nil then 
 		warn(Origin.Name .. " has missing components!")
 		return 
 	end
 
-	-- humanoid.HipHeight = -0.05
-
 	while humanoid.Health > 0 and Origin.Parent ~= nil do
 
-		target = FindTarget(Origin.PrimaryPart.Position, Origin.PrimaryPart.Position, unitModule[unitName].Distance, Origin:GetAttribute("Owner"))
-
 		task.wait(unitModule[unitName].Firerate)
-
+		
+		--[[
 		task.spawn(function()
 			while humanoid.Health > 0 do
 				task.wait(0.15)
 				getLandInfo(Origin)
-
-				--[[
-				if math.abs(Origin.PrimaryPart.Velocity.X or Origin.PrimaryPart.Velocity.Z) >= 0.05 and humanoid:FindFirstChild("Animation") ~= nil and animTrack.IsPlaying == false then
-					animTrack:Play()
-				elseif math.abs(Origin.PrimaryPart.Velocity.X and Origin.PrimaryPart.Velocity.Z) < 0.05 and humanoid:FindFirstChild("Animation") ~= nil then
-					animTrack:Stop()
-				end
-				]]--
 			end
 		end)
+		]]--
 
-		if target ~= nil and humanoid.Health > 0 and (Origin.PrimaryPart.Position - target.Position).Magnitude <= unitModule[unitName].Distance then
-			task.spawn(fire, Origin, target)
+		if Origin:FindFirstChild("Radius") ~= nil then
+			-- task.spawn(fire, Origin, target)
+			local contactedParts = game.Workspace:GetPartsInPart(Origin:WaitForChild("Radius"), params)
+			
+			-- print(contactedParts)
+			
+			for i = #contactedParts, 1, -1 do
+				if contactedParts[i].Parent:GetAttribute("Owner") == Origin:GetAttribute("Owner") or contactedParts[i].Name ~= "HumanoidRootPart" then
+					table.remove(contactedParts, i)
+				end
+			end
+			
+			for index, detectedUnits in pairs(contactedParts) do
+				if detectedUnits ~= nil then
+					detectedUnits.Parent.Humanoid:TakeDamage(unitModule[Origin.Name].Damage / #contactedParts)
+				end
+			end	
 		end
 	end
 	task.wait(0.5)
