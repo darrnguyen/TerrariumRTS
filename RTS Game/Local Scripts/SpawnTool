@@ -1,0 +1,59 @@
+local player = game:GetService("Players").LocalPlayer
+local mouse = player:GetMouse()
+local tempRemote = game.ReplicatedStorage.TEMPSPAWNREMOTE
+local debounce = false
+
+local highLightedPart = nil
+local spawnUI = player.PlayerGui:WaitForChild("OtherUIs").TempSpawnMenu
+local canSpawn = false
+local selectedTroop = "Soldier"
+
+script.Parent.Equipped:Connect(function()
+
+	canSpawn = true
+	spawnUI.Visible = true
+
+	task.spawn(function()
+		while task.wait(0.05) do
+			if highLightedPart ~= nil and highLightedPart:FindFirstChildWhichIsA("Highlight") and player.Character:FindFirstChild("TempTroopSpawn") then
+				highLightedPart.Highlight:Destroy()
+			end
+			if mouse.Target ~= nil and game.Workspace.MapPieces:FindFirstChild(mouse.Target.Name) and player.Character:FindFirstChild("TempTroopSpawn") then
+				highLightedPart = mouse.Target
+
+				local hightlight = Instance.new("Highlight")
+				hightlight.Parent = highLightedPart
+			end
+		end
+	end)
+
+	mouse.Button1Down:Connect(function()
+		if canSpawn == false or debounce == true then return end
+		if mouse.Target:GetAttribute("LandOwner") == player.Name then
+			debounce = true
+			tempRemote:FireServer(mouse.Hit.Position + Vector3.new(0,1.5,0), selectedTroop)
+			task.wait(0.25)
+			debounce = false
+		end
+	end)
+end)
+
+script.Parent.Unequipped:Connect(function()
+	canSpawn = false
+	spawnUI.Visible = false
+
+	for index, parts in pairs(workspace.MapPieces:GetChildren()) do
+		if parts:FindFirstChild("Highlight") then
+			parts.Highlight:Destroy()
+		end
+	end
+end)
+
+for index, item in pairs(spawnUI:GetChildren()) do
+	if item:IsA("TextButton") then
+		item.MouseButton1Click:Connect(function()
+			if canSpawn == false then return end
+			selectedTroop = item.Name
+		end)
+	end
+end
