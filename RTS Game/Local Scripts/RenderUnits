@@ -1,7 +1,7 @@
 local renderUnit = game.ReplicatedStorage.RenderUnit
 
 renderUnit.OnClientEvent:Connect(function(model : Model)
-	local clone = workspace.UnitDisplay:FindFirstChild(model.Name)
+	local clone = workspace.UnitDisplay:FindFirstChild(model.Name):Clone()
 	clone.Parent = model
 	clone.Torso.BrickColor = game.Players:FindFirstChild(model:GetAttribute("Owner")).TeamColor
 	task.wait(0.025)
