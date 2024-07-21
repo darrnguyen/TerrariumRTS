@@ -4,18 +4,21 @@ local unitModule = {
 		["Speed"] = 1.5,
 		["Distance"] = 7.5,
 		["Firerate"] = 0.75,
+		["Health"] = 100,
 	},
 	["Scout"] = {
 		["Damage"] = 2,
 		["Speed"] = 2,
 		["Distance"] = 5,
 		["Firerate"] = 1,
+		["Health"] = 75,
 	},
 	["Tank"] = {
 		["Damage"] = 25,
 		["Speed"] = 1.1,
 		["Distance"] = 7.5,
 		["Firerate"] = 2.5,
+		["Health"] = 250,
 	}
 }
 
@@ -57,57 +60,10 @@ function getLandInfo(unit : Model)
 	end
 end
 
-function fire(Origin : Model, target)
-	local targetHumanoid = target.Parent:FindFirstChild("Humanoid")
-
-	local bullet = Instance.new("Part")
-	bullet.Parent = game.Workspace
-	bullet.Size = Vector3.new(0.05,0.05,0.05)
-	bullet.Anchored = true
-	bullet.Locked = true
-	bullet.Transparency = 1
-	bullet.CanCollide = false
-	bullet.CanTouch = false
-
-	local att1 = Instance.new("Attachment")
-	att1.Parent = bullet
-	att1.WorldPosition = bullet.Position
-
-	local att2 = att1:Clone()
-	att2.Parent = bullet
-	att2.Position = Vector3.new(0,-0.05,0)
-
-	local trail = Instance.new("Trail")
-	trail.Color = ColorSequence.new(Color3.new(1,1,0))
-	trail.Transparency = NumberSequence.new(0.25)
-	trail.Attachment0 = att2
-	trail.Attachment1 = att1
-	trail.Lifetime = 0.25
-	trail.Parent = bullet
-	trail.FaceCamera = true
-
-	bullet.Parent = game.Workspace
-	-- bullet.Position = Origin:WaitForChild("Tool").FiringPoint.Position 
-	if Origin:FindFirstChild("Weapon") ~= nil then
-		bullet.Position = Origin:FindFirstChild("Weapon").FiringPoint.Position
-	else
-		bullet.Position = Origin.FiringPoint.Position
-	end
-
-	task.wait(0.02)
-
-	local bulletVisual = tweenService:Create(bullet, TweenInfo.new(0.25), {Position = target.Position})
-	bulletVisual:Play()
-
-	targetHumanoid:TakeDamage(unitModule[Origin.Name].Damage)
-
-	bulletVisual.Completed:Wait()
-end
-
 local tempRemote = game.ReplicatedStorage.TEMPSPAWNREMOTE
 local removeTroops = game.ReplicatedStorage.RemoveTroops
 
-tempRemote.OnServerEvent:Connect(function(player, position)
+tempRemote.OnServerEvent:Connect(function(player, position, troopType)
 
 	local countryModule = require(game.ServerScriptService.CountryModule)
 	local leaders = countryModule.getInfo()
@@ -116,14 +72,19 @@ tempRemote.OnServerEvent:Connect(function(player, position)
 		return
 	end
 
-	local clone = workspace.UnitDisplay.Soldier:Clone()
+	local clone = workspace.UnitDisplay.Render:Clone()
 	clone:SetAttribute("Owner", player.Name)
 	clone.Parent = game.Workspace.Units
 	clone.PrimaryPart.Anchored = false
 	clone:PivotTo(CFrame.new(position))
 
 	local renderUnit = game.ReplicatedStorage.RenderUnit
+	clone.Name = troopType
 	renderUnit:FireAllClients(clone)
+	
+	local humanoid = clone:FindFirstChildWhichIsA("Humanoid")
+	humanoid.MaxHealth, humanoid.Health = unitModule[troopType].Health, unitModule[troopType].Health
+	humanoid.WalkSpeed = unitModule[troopType].Speed
 
 	for index, parts in pairs(clone:GetDescendants()) do
 		if parts:IsA("BasePart") or parts:IsA("UnionOperation") then
@@ -202,12 +163,23 @@ function unitModule.Attack(Origin : Model)
 			
 			for index, detectedUnits in pairs(contactedParts) do
 				if detectedUnits ~= nil then
+					
+					if detectedUnits.Parent:FindFirstChildWhichIsA("Tween") then
+						detectedUnits.Parent:FindFirstChildWhichIsA("Tween"):Pause()
+						detectedUnits.Parent:FindFirstChildWhichIsA("Tween"):Destroy()
+					end
+					
+					if Origin:FindFirstChildWhichIsA("Tween") then
+						Origin:FindFirstChildWhichIsA("Tween"):Pause()
+						Origin:FindFirstChildWhichIsA("Tween"):Destroy()
+					end
+					
 					detectedUnits.Parent.Humanoid:TakeDamage(unitModule[Origin.Name].Damage / #contactedParts)
 				end
 			end	
 		end
 	end
-	task.wait(0.5)
+	task.wait(0.15)
 	Origin:Destroy()
 end
 
