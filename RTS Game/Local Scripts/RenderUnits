@@ -1,19 +1,37 @@
 local renderUnit = game.ReplicatedStorage.RenderUnit
+local player = game:GetService("Players").LocalPlayer
+local retrieveInfo = game.ReplicatedStorage.RetrieveInfo
 
 renderUnit.OnClientEvent:Connect(function(model : Model)
+	renderUnit(model)
+end)
+
+player.CharacterAdded:Connect(function()
+	task.wait(1.5)
+	for _, units in pairs(workspace.Units:GetChildren()) do
+		if not units:FindFirstChild("Torso") then
+			renderUnit(units)
+		end
+	end
+end)
+
+function renderUnit(model: Model)
+	local info = retrieveInfo:InvokeServer()
 	local clone = workspace.UnitDisplay:FindFirstChild(model.Name):Clone()
 	clone.Parent = model
-	clone.Torso.BrickColor = game.Players:FindFirstChild(model:GetAttribute("Owner")).TeamColor
+	-- clone.Torso.BrickColor = game.Players:FindFirstChild(model:GetAttribute("Owner")).TeamColor
+	print(info)
+	clone.Torso.BrickColor = info[model:GetAttribute("Owner")].Color
 	task.wait(0.025)
 	clone.PrimaryPart:PivotTo(model.PrimaryPart.CFrame + Vector3.new(0,0.25,0))
-	
+
 	local weld = Instance.new("WeldConstraint")
 	weld.Parent = model
 	weld.Part0 = model.PrimaryPart
 	weld.Part1 = clone.PrimaryPart
-	
+
 	for index, parts in pairs(clone:GetChildren()) do
 		parts.Parent = model
 	end
 	clone:Destroy()
-end)
+end
