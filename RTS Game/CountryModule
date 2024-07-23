@@ -20,9 +20,10 @@ end
 ]]--
 
 local leaders = {
-	["Test"] = {
-		["Color"] = BrickColor.new("Really red"),
-		["Name"] = "Test Country",
+	["AI-Country"] = {
+		["Color"] = BrickColor.new("Institutional white"),
+		["Name"] = "Rebels",
+		["Allys"] = {}
 	},
 }
 
@@ -66,6 +67,12 @@ countryClaims.OnServerEvent:Connect(function(player, countryName, color)
 				end
 			end
 		end
+		
+		for index, units in pairs(workspace.Units:GetChildren()) do
+			if units:GetAttribute("Owner") == player.Name then
+				units:Destroy()
+			end
+		end
 	else
 		local newTeam = Instance.new("Team")
 		newTeam.Parent = game.Teams
@@ -77,6 +84,7 @@ countryClaims.OnServerEvent:Connect(function(player, countryName, color)
 		leaders[player.Name] = {
 			["Color"] = color,
 			["Name"] = countryName,
+			["Allys"] = {}
 		}
 
 		for index, parts in pairs(workspace.MapPieces:GetChildren()) do
