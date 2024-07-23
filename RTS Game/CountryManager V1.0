@@ -45,13 +45,25 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	player.Team:Destroy()
 	countryModule.removePlayer(player.Name)
+	
+	for _, units in pairs(workspace.Units:GetChildren()) do
+		if units:GetAttribute("Owner") ==  player.Name then
+			units:Destroy()
+		end
+	end
+	
+	for _, land in pairs(workspace.MapPieces:GetChildren()) do
+		if land:GetAttribute("LandOwner") == player.Name then
+			land:SetAttribute("LandOwner", "")
+		end
+	end
 end)
 
 addMoney = function()
 	while task.wait(1) do
 		for index, players in pairs(game.Players:GetChildren()) do
 			if players.leaderstats then
-				players.leaderstats.Money.Value += 1
+				players.leaderstats.Money.Value += 2
 			end
 		end
 	end
