@@ -8,7 +8,7 @@ renderUnit.OnClientEvent:Connect(function(model : Model)
 end)
 
 player.CharacterAdded:Connect(function()
-	
+
 	for _, units in pairs(workspace.Units:GetChildren()) do
 		if not units:FindFirstChild("Torso") then
 			task.wait()
@@ -21,13 +21,18 @@ function renderUnit(model: Model)
 	local info = retrieveInfo:InvokeServer()
 	local clone = game.ReplicatedFirst.UnitDisplay:FindFirstChild(model.Name):Clone()
 	clone.Parent = model
-	
+
 	repeat
 		task.wait()
-	until (model.PrimaryPart ~= nil and clone.Torso ~= nil)
-	
-	clone.PrimaryPart:PivotTo(model.PrimaryPart.CFrame + Vector3.new(0,0.25,0))
-	clone.Torso.BrickColor = info[model:GetAttribute("Owner")].Color
+	until (model.PrimaryPart ~= nil)
+
+	if model.Name == "Battlecruiser" or model.Name == "Dreadnought" then
+		clone.PrimaryPart:PivotTo(model.PrimaryPart.CFrame + Vector3.new(0,0.2,0))
+		clone.Flag.BrickColor = info[model:GetAttribute("Owner")].Color
+	else
+		clone.PrimaryPart:PivotTo(model.PrimaryPart.CFrame + Vector3.new(0,0.2,0))
+		clone.Torso.BrickColor = info[model:GetAttribute("Owner")].Color
+	end
 
 	local weld = Instance.new("WeldConstraint")
 	weld.Parent = model
