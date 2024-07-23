@@ -2,24 +2,57 @@ local unitModule = {
 	["Soldier"] = {
 		["Damage"] = 4,
 		["Speed"] = 1.5,
-		["Distance"] = 7.5,
 		["Firerate"] = 0.75,
 		["Health"] = 100,
+		["Cost"] = 2,
 	},
 	["Scout"] = {
-		["Damage"] = 2,
+		["Damage"] = 1.5,
 		["Speed"] = 2,
-		["Distance"] = 5,
 		["Firerate"] = 1,
 		["Health"] = 75,
+		["Cost"] = 3,
 	},
 	["Tank"] = {
-		["Damage"] = 25,
-		["Speed"] = 1.1,
-		["Distance"] = 7.5,
-		["Firerate"] = 2.5,
-		["Health"] = 250,
-	}
+		["Damage"] = 15,
+		["Speed"] = 1.25,
+		["Firerate"] = 2,
+		["Health"] = 200,
+		["Cost"] = 5
+	},
+	["Elite Guard"] = {
+		["Damage"] = 10,
+		["Speed"] = 1,
+		["Firerate"] = 0.5,
+		["Health"] = 500,
+		["Cost"] = 10,
+	},
+	["Medium Tank"] = {
+		["Damage"] = 50,
+		["Speed"] = 1.15,
+		["Firerate"] = 2.25,
+		["Health"] = 275,
+		["Cost"] = 15,
+	},
+
+	["Battlecruiser"] = {
+		-- more health and slightly more dps
+		-- faster
+		["Damage"] = 1,
+		["Speed"] = 1,
+		["Firerate"] = 1,
+		["Health"] = 1,
+		["Cost"] = 1,
+
+	},
+	["Dreadnought"] = {
+		-- more tanky
+		["Damage"] = 1,
+		["Speed"] = 1,
+		["Firerate"] = 1,
+		["Health"] = 1,
+		["Cost"] = 1,		
+	},
 }
 
 local terrainDebuffs = {	
@@ -64,6 +97,13 @@ local tempRemote = game.ReplicatedStorage.TEMPSPAWNREMOTE
 local removeTroops = game.ReplicatedStorage.RemoveTroops
 
 tempRemote.OnServerEvent:Connect(function(player, position, troopType)
+	local clone
+
+	if player:WaitForChild("leaderstats").Money.Value < unitModule[troopType].Cost then
+		return
+	else
+		player.leaderstats.Money.Value -= unitModule[troopType].Cost
+	end
 
 	local countryModule = require(game.ServerScriptService.CountryModule)
 	local leaders = countryModule.getInfo()
@@ -72,7 +112,12 @@ tempRemote.OnServerEvent:Connect(function(player, position, troopType)
 		return
 	end
 
-	local clone = workspace.UnitDisplay.Render:Clone()
+	if troopType == "Battlecruiser" or troopType == "Dreadnought" then
+		clone = game.ReplicatedFirst.UnitDisplay.ShipRender:Clone()
+	else
+		clone = game.ReplicatedFirst.UnitDisplay.Render:Clone()
+	end
+
 	clone:SetAttribute("Owner", player.Name)
 	clone.Parent = game.Workspace.Units
 	clone.PrimaryPart.Anchored = false
@@ -81,7 +126,7 @@ tempRemote.OnServerEvent:Connect(function(player, position, troopType)
 	local renderUnit = game.ReplicatedStorage.RenderUnit
 	clone.Name = troopType
 	renderUnit:FireAllClients(clone)
-	
+
 	local humanoid = clone:FindFirstChildWhichIsA("Humanoid")
 	humanoid.MaxHealth, humanoid.Health = unitModule[troopType].Health, unitModule[troopType].Health
 	humanoid.WalkSpeed = unitModule[troopType].Speed
@@ -100,9 +145,10 @@ tempRemote.OnServerEvent:Connect(function(player, position, troopType)
 		end
 	end
 
-	task.wait(0.5)
+	task.wait(0.25)
 
 	clone.PrimaryPart.Anchored = true
+	clone.PrimaryPart.Position = clone.PrimaryPart.Position * Vector3.new(1, 0, 1) + Vector3.new(0, -14.84, 0)
 
 	unitModule.Attack(clone)
 end)
@@ -139,7 +185,7 @@ function unitModule.Attack(Origin : Model)
 	while humanoid.Health > 0 and Origin.Parent ~= nil do
 
 		task.wait(unitModule[unitName].Firerate)
-		
+
 		--[[
 		task.spawn(function()
 			while humanoid.Health > 0 do
@@ -149,37 +195,37 @@ function unitModule.Attack(Origin : Model)
 		end)
 		]]--
 
-		if Origin:FindFirstChild("Radius") ~= nil then
+		if Origin:FindFirstChild("HumanoidRootPart") ~= nil then
 			-- task.spawn(fire, Origin, target)
-			local contactedParts = game.Workspace:GetPartsInPart(Origin:WaitForChild("Radius"), params)
-			
+			local contactedParts = game.Workspace:GetPartsInPart(Origin:WaitForChild("HumanoidRootPart"), params)
+
 			-- print(contactedParts)
-			
+
 			for i = #contactedParts, 1, -1 do
 				if contactedParts[i].Parent:GetAttribute("Owner") == Origin:GetAttribute("Owner") or contactedParts[i].Name ~= "HumanoidRootPart" then
 					table.remove(contactedParts, i)
 				end
 			end
-			
+
 			for index, detectedUnits in pairs(contactedParts) do
-				if detectedUnits ~= nil then
-					
+				if detectedUnits ~= nil and humanoid.Health > 0 then
+
 					if detectedUnits.Parent:FindFirstChildWhichIsA("Tween") then
 						detectedUnits.Parent:FindFirstChildWhichIsA("Tween"):Pause()
 						detectedUnits.Parent:FindFirstChildWhichIsA("Tween"):Destroy()
 					end
-					
+
 					if Origin:FindFirstChildWhichIsA("Tween") then
 						Origin:FindFirstChildWhichIsA("Tween"):Pause()
 						Origin:FindFirstChildWhichIsA("Tween"):Destroy()
 					end
-					
+
 					detectedUnits.Parent.Humanoid:TakeDamage(unitModule[Origin.Name].Damage / #contactedParts)
 				end
 			end	
 		end
 	end
-	task.wait(0.15)
+	task.wait(0.05)
 	Origin:Destroy()
 end
 
